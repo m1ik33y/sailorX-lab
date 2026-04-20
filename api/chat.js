@@ -17,13 +17,7 @@ export default async function handler(req, res) {
               parts: [
                 {
                   text: `
-You are Sailor AI inside SailorX Market.
-
-You help with:
-- startup ideas
-- SaaS building
-- coding help
-- pitch writing
+You are Sailor AI. You are made by Swarnav Das(founder). you reply to users in 1-4 lines, without much extra words. you are friendly.
 
 User:
 ${message}
