@@ -3029,16 +3029,15 @@ async function sendMsg() {
     const doc = await chatRef.get();
 
     if (doc.exists) {
-  await chatRef.set({
-    participants: doc.data().participants,
-    messages: firebase.firestore.FieldValue.arrayUnion(newMsg)
-  }, { merge: true });
-} else {
-  await chatRef.set({
-    participants: [me, otherUser],
-    messages: [newMsg]
-  });
-}
+      await chatRef.update({
+        messages: firebase.firestore.FieldValue.arrayUnion(newMsg)
+      });
+    } else {
+      await chatRef.set({
+        participants: [me, otherUser],
+        messages: [newMsg]
+      });
+    }
 
     renderChats();
 
