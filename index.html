@@ -2015,7 +2015,31 @@ function openEditBizProfile() {
 // ============================================================
 // NAVIGATION
 // ============================================================
+function closeChatDM() {
+  // Close the DM/chat view
+  if (unsubscribeChat) {
+    unsubscribeChat();
+    unsubscribeChat = null;
+  }
+  state.activeChatUser = null;
+  state.activeChatName = null;
+  
+  document.getElementById('chat-empty').style.display = 'flex';
+  document.getElementById('chat-active').style.display = 'none';
+  
+  const messagesEl = document.getElementById('chat-messages');
+  if (messagesEl) messagesEl.innerHTML = '';
+  
+  const input = document.getElementById('chat-input');
+  if (input) input.value = '';
+}
+
 function navigate(page) {
+  // Close chat DM when leaving the chats page
+  if (page !== 'chats' && state.activeChatUser) {
+    closeChatDM();
+  }
+  
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById('page-' + page).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
@@ -2884,7 +2908,12 @@ async function renderChats() {
 }
 
 function openChat(otherUsername) {
-  navigate('chats');
+  // Only open chat if currently on the chats page
+  const currentPage = document.querySelector('.page.active');
+  if (currentPage?.id !== 'page-chats') {
+    navigate('chats');
+  }
+  
   state.activeChatUser = otherUsername;
   state.activeChatName = otherUsername;
 
