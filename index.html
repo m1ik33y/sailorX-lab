@@ -1554,6 +1554,7 @@ input[type=range]{accent-color:var(--text);height:4px}
 
 <script>
   let unsubscribeChat = null;
+  let unsubscribePosts = null; // Global posts listener
 
 // ============================================================
 //AUTH CONFIG (Firebase)
@@ -1665,6 +1666,52 @@ async function loadGlobalPosts() {
   }
 }
 
+function setupGlobalPostsListener() {
+  // Clean up existing listener
+  if (unsubscribePosts) {
+    unsubscribePosts();
+    unsubscribePosts = null;
+  }
+
+  // Set up real-time listener for global posts
+  unsubscribePosts = db.collection('posts')
+    .orderBy('createdAt', 'desc')
+    .onSnapshot(
+      snap => {
+        const posts = snap.docs.map(doc => doc.data());
+        state.globalPosts = posts;
+        save();
+        // Re-render feed if visible
+        const feedPage = document.getElementById('page-feed');
+        if (feedPage && feedPage.classList.contains('active')) {
+          const container = document.getElementById('feed-list');
+          if (container) {
+            if (!posts.length) {
+              container.innerHTML = `<div class="empty-state">
+                <div class="empty-icon">📡</div>
+                <div class="empty-title">Nothing here yet</div>
+                <div class="empty-desc">Be the first to post something. Tap the + button.</div>
+              </div>`;
+            } else {
+              container.innerHTML = posts.map(p => renderPostCard(p)).join('');
+            }
+          }
+        }
+        console.log('📡 Global posts updated:', posts.length, 'posts');
+      },
+      err => {
+        console.error('Global posts listener error:', err);
+      }
+    );
+}
+
+function cleanupGlobalPostsListener() {
+  if (unsubscribePosts) {
+    unsubscribePosts();
+    unsubscribePosts = null;
+  }
+}
+
 async function loadUserData(uid) {
   if (!uid) return;
   try {
@@ -1747,6 +1794,7 @@ function enterApp() {
   hideAll();
   document.getElementById('app').classList.remove('hidden');
   updateSidebar();
+  setupGlobalPostsListener(); // Start listening for global posts
   void renderFeed();
   renderCollab();
   renderChats();
@@ -1867,6 +1915,8 @@ function handleGoogleSignIn() {
 
 async function signOut() {
   console.log('🔓 Signing out from Firebase');
+  cleanupGlobalPostsListener(); // Clean up posts listener
+  closeChatDM(); // Clean up chat listener
   try {
     await auth.signOut();
   } catch (err) {
