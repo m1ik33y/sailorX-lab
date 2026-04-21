@@ -632,10 +632,50 @@ h1,h2,h3,h4{font-family:'Syne',sans-serif}
 .chat-av img{width:100%;height:100%;object-fit:cover}
 .chat-name{font-size:14px;font-weight:600}
 .chat-preview{font-size:12px;color:var(--text3);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.chat-layout{display:flex;gap:0;height:calc(100vh - 60px)}
+.chat-layout{display:flex;gap:0;height:calc(100vh - 60px);position:relative;overflow:hidden}
 .chat-sidebar{width:280px;border-right:1px solid var(--border);padding:16px;overflow-y:auto;flex-shrink:0}
 .chat-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+
+/* Mobile chat view mode */
+.chat-layout.mobile-mode {
+  flex-direction: column;
+}
+.chat-layout.mobile-mode .chat-sidebar {
+  width: 100%;
+  border-right: none;
+  border-bottom: 1px solid var(--border);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  transform: translateX(0);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 10;
+}
+.chat-layout.mobile-mode .chat-sidebar.slide-out {
+  transform: translateX(100%);
+}
+.chat-layout.mobile-mode .chat-main {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  height: 100%;
+  transform: translateX(100%);
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  display: none;
+}
+.chat-layout.mobile-mode .chat-main.show {
+  display: flex;
+  transform: translateX(0);
+}
 .chat-header{padding:14px 20px;border-bottom:1px solid var(--border);font-family:'Syne',sans-serif;font-size:15px;font-weight:700;display:flex;align-items:center;gap:10px}
+.chat-back-btn{transition:opacity .2s}
+.chat-back-btn:hover{opacity:.7}
 .chat-messages{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:10px}
 .msg-wrap{display:flex;align-items:flex-end;gap:8px}
 .msg-wrap.self{flex-direction:row-reverse}
@@ -924,9 +964,11 @@ input[type=range]{accent-color:var(--text);height:4px}
   #bottombar{display:block}
   #main{padding-bottom:72px}
   #content{padding:16px}
-  .chat-sidebar{display:none}
-  .chat-sidebar.visible{display:block;position:fixed;inset:0;z-index:150;background:var(--bg2);overflow-y:auto}
-  .chat-layout{height:calc(100vh - 132px)}
+  .chat-layout{height:calc(100vh - 132px);display:flex;flex-direction:column;position:relative}
+  .chat-sidebar{display:none;width:100%;border-right:none;border-bottom:1px solid var(--border)}
+  .chat-sidebar.visible{display:flex;flex-direction:column}
+  .chat-main{position:relative;display:none}
+  .chat-main.visible{display:flex}
   #fab{bottom:80px}
   #fab-menu{bottom:140px}
   .form-row{grid-template-columns:1fr}
@@ -945,6 +987,11 @@ input[type=range]{accent-color:var(--text);height:4px}
 }
 @media(min-width:769px){
   .chat-main{display:flex!important}
+  .chat-layout.mobile-mode { flex-direction: row; }
+  .chat-layout.mobile-mode .chat-sidebar { position: relative; width: 280px; border-right: 1px solid var(--border); transform: none !important; z-index: auto; }
+  .chat-layout.mobile-mode .chat-sidebar.slide-out { transform: none !important; }
+  .chat-layout.mobile-mode .chat-main { position: relative; transform: none !important; display: flex !important; width: auto; height: auto; }
+  .chat-layout.mobile-mode .chat-main.show { transform: none !important; }
 }
 </style>
 </head>
@@ -1264,6 +1311,7 @@ input[type=range]{accent-color:var(--text);height:4px}
           </div>
           <div id="chat-active" style="display:none;flex-direction:column;height:100%;overflow:hidden">
             <div class="chat-header">
+              <button class="chat-back-btn" onclick="backToChatList()" style="display:none;background:none;border:none;color:var(--text);cursor:pointer;font-size:20px;padding:0;margin-right:8px" id="chat-back-btn">←</button>
               <div style="width:32px;height:32px;border-radius:9px;background:var(--bg3);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700" id="chat-active-av"></div>
               <span id="chat-active-name"></span>
             </div>
@@ -2082,6 +2130,12 @@ function closeChatDM() {
   
   const input = document.getElementById('chat-input');
   if (input) input.value = '';
+  
+  // Reset mobile layout
+  const isMobile = window.innerWidth <= 768;
+  if (isMobile) {
+    hideChatDMOnMobile();
+  }
 }
 
 function navigate(page) {
@@ -2097,12 +2151,36 @@ function navigate(page) {
   const titles = { feed:'Feed', collab:'Collab', chats:'Chats', profile:'Profile', settings:'Settings', sailor:'Sailor AI' };
   document.getElementById('topbar-title').textContent = titles[page] || page;
   if (page === 'profile') renderProfile();
+  if (page === 'chats' && window.innerWidth <= 768) {
+    // Initialize swipe detection on mobile chats
+    setTimeout(() => initMobileChatSwipe(), 100);
+    // Show back button on mobile when needed
+    updateMobileChatBackButton();
+  }
   if (page === 'sailor') {
     setTimeout(() => { const inp = document.getElementById('sailor-input'); if (inp) inp.focus(); }, 100);
   }
   document.getElementById('fab-menu').classList.remove('open');
   const fab = document.getElementById('fab');
   if (fab) fab.style.display = (page === 'sailor') ? 'none' : 'flex';
+}
+
+function backToChatList() {
+  hideChatDMOnMobile();
+  closeChatDM();
+  updateMobileChatBackButton();
+}
+
+function updateMobileChatBackButton() {
+  const isMobile = window.innerWidth <= 768;
+  const backBtn = document.getElementById('chat-back-btn');
+  if (!backBtn) return;
+  
+  if (isMobile && state.activeChatUser) {
+    backBtn.style.display = 'block';
+  } else {
+    backBtn.style.display = 'none';
+  }
 }
 
 function goToProfile() { navigate('profile'); }
@@ -2957,6 +3035,70 @@ async function renderChats() {
   }
 }
 
+function showChatDMOnMobile() {
+  // On mobile, slide chat-main in from right
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) return;
+
+  const layout = document.querySelector('.chat-layout');
+  const sidebar = document.getElementById('chat-sidebar');
+  const chatMain = document.getElementById('chat-main-area');
+
+  layout.classList.add('mobile-mode');
+  sidebar.classList.remove('slide-out');
+  chatMain.classList.add('show');
+  updateMobileChatBackButton();
+}
+
+function hideChatDMOnMobile() {
+  // On mobile, slide chat-main back out
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) return;
+
+  const layout = document.querySelector('.chat-layout');
+  const sidebar = document.getElementById('chat-sidebar');
+  const chatMain = document.getElementById('chat-main-area');
+
+  sidebar.classList.remove('slide-out');
+  chatMain.classList.remove('show');
+}
+
+function initMobileChatSwipe() {
+  const isMobile = window.innerWidth <= 768;
+  if (!isMobile) return;
+
+  const layout = document.querySelector('.chat-layout');
+  if (!layout) return;
+
+  let touchStartX = 0;
+  let touchEndX = 0;
+
+  layout.addEventListener('touchstart', e => {
+    touchStartX = e.changedTouches[0].screenX;
+  }, false);
+
+  layout.addEventListener('touchend', e => {
+    touchEndX = e.changedTouches[0].screenX;
+    handleSwipe();
+  }, false);
+
+  function handleSwipe() {
+    const swipeThreshold = 50; // minimum distance for swipe
+    const diff = touchEndX - touchStartX;
+
+    if (Math.abs(diff) < swipeThreshold) return; // too short
+
+    const chatMain = document.getElementById('chat-main-area');
+    const isDMVisible = chatMain.classList.contains('show');
+
+    // Swipe right to go back to person selector
+    if (diff > swipeThreshold && isDMVisible) {
+      hideChatDMOnMobile();
+      closeChatDM();
+    }
+  }
+}
+
 function openChat(otherUsername) {
   // Only open chat if currently on the chats page
   const currentPage = document.querySelector('.page.active');
@@ -2978,6 +3120,11 @@ function openChat(otherUsername) {
 
   document.getElementById('chat-active-av').textContent = otherUsername[0].toUpperCase();
   document.getElementById('chat-active-name').textContent = '@' + otherUsername;
+
+  // Show DM on mobile
+  if (window.innerWidth <= 768) {
+    showChatDMOnMobile();
+  }
 
   const messagesEl = document.getElementById('chat-messages');
 
